@@ -1,0 +1,56 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Settings {
+  idKey         String    @id @default("global")
+  periodsPerDay Int       @default(8)
+  semesterStart DateTime?
+  semesterEnd   DateTime?
+  workingDays   String    @default("1,2,3,4,5") // Mon-Fri
+}
+
+model MasterSchedule {
+  id          String  @id @default(uuid())
+  dayOfWeek   Int // 1=Mon, 5=Fri
+  periodIndex Int // 0-indexed (0 to 7)
+  courseId    Int // Moodle Course ID
+  courseName  String // Cached name for display
+  isLocked    Boolean @default(false)
+  cohortId    Int // Moodle Cohort ID
+  cohortName  String // Cached name
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dayOfWeek, periodIndex, cohortId]) // No double booking for the same cohort
+}
+
+model SubjectConstraint {
+  id              String  @id @default(uuid())
+  courseId        Int
+  courseName      String
+  cohortId        Int
+  requiredHours   Int     @default(0)
+  preferredDays   String? // "1,3,5"
+  blockedPeriods  String? // "0,7"
+  consecutiveHours Int    @default(1) // e.g. 2 for labs
+
+  @@unique([courseId, cohortId])
+}
+
+model SyncLog {
+  id              String   @id @default(uuid())
+  timestamp       DateTime @default(now())
+  status          String // "SUCCESS", "ERROR"
+  message         String
+  sessionsCreated Int
+}
