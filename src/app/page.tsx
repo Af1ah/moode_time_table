@@ -1,19 +1,57 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CohortSelector from '@/components/CohortSelector';
 import WeeklyGrid, { Slot } from '@/components/WeeklyGrid';
 import WorkloadInput from '@/components/WorkloadInput';
-import { MOCK_SUBJECTS } from '@/lib/types';
-
-import { Cohort } from '@/lib/types';
+import { Cohort, Subject, MOCK_SUBJECTS } from '@/lib/types';
 
 export default function Home() {
   const [selectedCohorts, setSelectedCohorts] = useState<Cohort[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [periodCount, setPeriodCount] = useState(5);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const router = useRouter();
+
+  useEffect(() => {
+    async function fetchSubjects() {
+      if (selectedCohorts.length === 0) {
+        setSubjects([]);
+        return;
+      }
+
+      try {
+        const allCourses: Record<number, Subject> = {};
+
+        for (const cohort of selectedCohorts) {
+          const res = await fetch(`/api/moodle/cohort-courses?cohortId=${cohort.id}`);
+          if (res.ok) {
+            const courses = await res.json();
+            courses.forEach((c: any) => {
+              if (!allCourses[c.id]) {
+                allCourses[c.id] = {
+                  id: c.id,
+                  name: c.fullname,
+                  cohortIds: [cohort.id]
+                };
+              } else {
+                // Add cohortId if not already present
+                if (!allCourses[c.id].cohortIds.includes(cohort.id)) {
+                  allCourses[c.id].cohortIds.push(cohort.id);
+                }
+              }
+            });
+          }
+        }
+
+        setSubjects(Object.values(allCourses));
+      } catch (e) {
+        console.error('Failed to fetch subjects', e);
+      }
+    }
+    fetchSubjects();
+  }, [selectedCohorts]);
 
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -45,12 +83,20 @@ export default function Home() {
             <h1 className="text-3xl font-bold text-gray-900">
               Moodle Attendance Automation
             </h1>
-            <button
-              onClick={handleLogout}
-              className="text-sm text-gray-600 hover:text-gray-900 font-medium"
-            >
-              Sign Out
-            </button>
+            <div className="flex gap-4 items-center">
+              <button
+                onClick={() => router.push('/individual')}
+                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                Individual Session →
+              </button>
+              <button
+                onClick={handleLogout}
+                className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+              >
+                Sign Out
+              </button>
+            </div>
           </div>
           <p className="text-center text-gray-500 mb-8 -mt-6">Set-and-Forget Hybrid Scheduling Engine</p>
         </div>
@@ -63,7 +109,7 @@ export default function Home() {
               cohortIds={selectedCohorts.map(c => c.id)}
               onScheduleGenerated={handleScheduleGenerated}
               allSlots={slots}
-              subjects={MOCK_SUBJECTS}
+              subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
               periodsPerDay={periodCount}
             />
           </div>
@@ -124,7 +170,7 @@ export default function Home() {
                 selectedCohorts={selectedCohorts}
                 slots={slots}
                 onSlotChange={handleSlotChange}
-                subjects={MOCK_SUBJECTS}
+                subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
                 onPeriodsChange={setPeriodCount}
               />
             </div>

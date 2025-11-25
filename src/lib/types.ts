@@ -13,6 +13,9 @@ export const MOCK_SUBJECTS: Subject[] = [
 ];
 export interface Cohort {
     id: number;
-    fullname: string;
-    shortname: string;
+    name: string; // Used in real data
+    idnumber: string; // Used in real data
+    fullname?: string; // Optional, from legacy/mock
+    shortname?: string; // Optional, from legacy/mock
+    description?: string;
 }

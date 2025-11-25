@@ -153,7 +153,7 @@ export default function WeeklyGrid({ selectedCohorts, slots, subjects, onSlotCha
                         selectedCohorts.map((cohort, cohortIndex) => {
                             const isFirstCohort = cohortIndex === 0;
                             // Filter subjects for this cohort
-                            const cohortSubjects = subjects.filter(s => s.cohortIds?.includes(cohort.id));
+                            const cohortSubjects = subjects.filter(s => !s.cohortIds || s.cohortIds.length === 0 || s.cohortIds.includes(cohort.id));
 
                             return (
                                 <tr key={`${day}-${cohort.id}`}>
@@ -166,7 +166,7 @@ export default function WeeklyGrid({ selectedCohorts, slots, subjects, onSlotCha
                                         </td>
                                     )}
                                     <td className="p-2 border border-gray-200 bg-white text-sm font-medium text-gray-600">
-                                        {cohort.shortname}
+                                        {cohort.idnumber || cohort.shortname || cohort.name}
                                     </td>
                                     {Array.from({ length: periodCount }).map((_, periodIndex) => {
                                         const slot = getSlot(day, periodIndex, cohort.id);

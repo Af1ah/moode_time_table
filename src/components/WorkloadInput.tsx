@@ -20,7 +20,7 @@ export default function WorkloadInput(props: WorkloadInputProps) {
 
     // Filter subjects based on selected cohorts
     const filteredSubjects = subjects.filter(s =>
-        s.cohortIds && s.cohortIds.some(id => cohortIds.includes(id))
+        !s.cohortIds || s.cohortIds.length === 0 || s.cohortIds.some(id => cohortIds.includes(id))
     );
 
     const maxWorkload = Math.min(props.periodsPerDay * 5, 15);

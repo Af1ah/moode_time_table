@@ -15,6 +15,36 @@ export default function CohortSelector({ onSelect }: CohortSelectorProps) {
     useEffect(() => {
         async function fetchCohorts() {
             try {
+                // Try to find cohorts in localStorage first
+                let localCohorts: Cohort[] | null = null;
+                if (typeof window !== 'undefined') {
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key && key.startsWith('user_cohorts_')) {
+                            try {
+                                const stored = localStorage.getItem(key);
+                                if (stored) {
+                                    const parsed = JSON.parse(stored);
+                                    if (parsed.cohorts && Array.isArray(parsed.cohorts)) {
+                                        localCohorts = parsed.cohorts;
+                                        break; // Found it
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('Error parsing local cohorts', e);
+                            }
+                        }
+                    }
+                }
+
+                if (localCohorts) {
+                    console.log('Loaded cohorts from localStorage', localCohorts);
+                    setCohorts(localCohorts);
+                    setLoading(false);
+                    return;
+                }
+
+                // Fallback to API
                 const res = await fetch('/api/moodle/cohorts');
                 if (res.ok) {
                     const data = await res.json();
@@ -53,7 +83,7 @@ export default function CohortSelector({ onSelect }: CohortSelectorProps) {
             >
                 {cohorts.map((cohort) => (
                     <option key={cohort.id} value={cohort.id} className="text-gray-900">
-                        {cohort.fullname} ({cohort.shortname})
+                        {cohort.name || cohort.fullname} ({cohort.idnumber || cohort.shortname})
                     </option>
                 ))}
             </select>

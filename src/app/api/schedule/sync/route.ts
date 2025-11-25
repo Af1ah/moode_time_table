@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { moodleClient } from '@/lib/moodle-client';
 import { prisma } from '@/lib/prisma';
+import { createAttendanceSessionFromSchedule } from '@/lib/session-service';
 
 export async function POST(request: Request) {
   try {
@@ -42,21 +43,21 @@ export async function POST(request: Request) {
             "Attendance" 
           );
 
-          const startTime = new Date(date);
-          startTime.setHours(9 + slot.periodIndex, 0, 0, 0);
+          const sessionDate = new Date(date);
           
-          const sessionData = {
-            sessdate: Math.floor(startTime.getTime() / 1000),
-            duration: 3600, 
-            description: `Generated Session for Period ${slot.periodIndex + 1}`,
-          };
+          // Use the shared session service
+          const result = await createAttendanceSessionFromSchedule(
+            attendanceId,
+            sessionDate,
+            slot.periodIndex,
+            3600,
+            `Generated Session for Period ${slot.periodIndex + 1}`
+          );
 
-          try {
-            const session = await moodleClient.addSession(attendanceId, sessionData);
-            allResults.push({ cohortId, slot, status: 'created', sessionId: session.id });
-          } catch (err: any) {
-            console.error(err);
-            allResults.push({ cohortId, slot, status: 'failed', error: err.message });
+          if (result.success) {
+            allResults.push({ cohortId, slot, status: 'created', sessionId: result.sessionId });
+          } else {
+            allResults.push({ cohortId, slot, status: 'failed', error: result.error });
           }
         }
     }

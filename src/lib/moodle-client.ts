@@ -1,10 +1,9 @@
 import axios from 'axios';
 
 const BASE_URL = process.env.BASE_URL;
-const ATTENDANCE_TOKEN = process.env.ADMIN_ATTENDANCE_TOCKEN;
-const MOBILE_TOKEN = process.env.ADMIN_MOBILE_SERVICE_TOCKEN;
+const MOODLE_TOKEN = process.env.MOODLE_TOKEN;
 
-if (!BASE_URL || !ATTENDANCE_TOKEN || !MOBILE_TOKEN) {
+if (!BASE_URL || !MOODLE_TOKEN) {
   console.warn('Missing Moodle Environment Variables');
 }
 
@@ -49,17 +48,29 @@ class MoodleClient {
     // Let's try to get all courses if possible, or search.
     // core_course_search_courses might be safer to get a list.
     // Or just get all courses.
-    return this.call('core_course_get_courses', MOBILE_TOKEN!, {});
+    return this.call('core_course_get_courses', MOODLE_TOKEN!, {});
   }
 
   async getCohorts() {
     // Try to fetch cohorts using the standard API
     // Note: This requires the token to have 'core_cohort_get_cohorts' capability
-    return this.call('core_cohort_get_cohorts', MOBILE_TOKEN!, {});
+    return this.call('core_cohort_get_cohorts', MOODLE_TOKEN!, {});
+  }
+
+  async getCohortMembers(cohortId: number) {
+    return this.call('core_cohort_get_cohort_members', MOODLE_TOKEN!, {
+      cohortids: [cohortId]
+    });
+  }
+
+  async getUserCourses(userId: number) {
+    return this.call('core_enrol_get_users_courses', MOODLE_TOKEN!, {
+      userid: userId
+    });
   }
   
   async searchUsers(query: string) {
-      return this.call('core_user_get_users', MOBILE_TOKEN!, {
+      return this.call('core_user_get_users', MOODLE_TOKEN!, {
           criteria: [{ key: 'lastname', value: query }] // Example
       });
   }
@@ -67,21 +78,21 @@ class MoodleClient {
   // --- Attendance Functions (Using Attendance Token) ---
 
   async addAttendance(courseId: number, name: string) {
-    return this.call('mod_attendance_add_attendance', ATTENDANCE_TOKEN!, {
+    return this.call('mod_attendance_add_attendance', MOODLE_TOKEN!, {
       courseid: courseId,
       name: name,
     });
   }
 
   async addSession(attendanceId: number, sessionData: any) {
-    return this.call('mod_attendance_add_session', ATTENDANCE_TOKEN!, {
+    return this.call('mod_attendance_add_session', MOODLE_TOKEN!, {
       attendanceid: attendanceId,
       ...sessionData,
     });
   }
 
   async getSessions(attendanceId: number) {
-    return this.call('mod_attendance_get_sessions', ATTENDANCE_TOKEN!, {
+    return this.call('mod_attendance_get_sessions', MOODLE_TOKEN!, {
       attendanceid: attendanceId,
     });
   }
@@ -90,7 +101,7 @@ class MoodleClient {
       // We need to find the attendance instance id for a course.
       // Usually `core_course_get_contents` returns modules.
       // We can filter for "attendance" modname.
-      const contents = await this.call('core_course_get_contents', MOBILE_TOKEN!, {
+      const contents = await this.call('core_course_get_contents', MOODLE_TOKEN!, {
           courseid: courseId
       });
       

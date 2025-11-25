@@ -4,10 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:stop": "lsof -ti:3000 | xargs kill -9 2>/dev/null || echo 'No process on port 3000'",
     "build": "next build",
     "start": "next start",
     "lint": "biome check",
-    "format": "biome format --write"
+    "format": "biome format --write",
+    "clean": "rm -rf .next node_modules .cache package-lock.json && echo 'Cleaned: .next, node_modules, .cache, package-lock.json'"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",
