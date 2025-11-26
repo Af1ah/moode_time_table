@@ -6,13 +6,22 @@ interface Slot {
   period: number; // 0-7
   courseId: number | null;
   isLocked: boolean;
+  cohortId?: number; // Added to track which cohort this slot belongs to
+}
+
+interface Teacher {
+    id: number;
+    fullname: string;
 }
 
 interface SchedulerInput {
   lockedSlots: Slot[];
   workload: { [courseId: number]: number }; // courseId -> hours needed
   periodsPerDay: number;
-  blockedConstraints?: { [courseId: number]: string[] }; // courseId -> ["day-period"]
+  // blockedConstraints?: { [courseId: number]: string[] }; // Deprecated in favor of teacher constraints
+  courseTeachers?: Record<number, Teacher[]>;
+  teacherConstraints?: Record<number, string[]>;
+  existingSlots?: Slot[]; // Slots from other cohorts to check for conflicts
 }
 
 export class Scheduler {
@@ -50,7 +59,6 @@ export class Scheduler {
     });
 
     // 3. Sort Subjects by Difficulty (Heuristic: Most hours first)
-    // In a real constraint solver, we'd consider double blocks, blocked days, etc.
     const sortedSubjects = Object.entries(input.workload)
       .map(([courseId, hours]) => ({ courseId: Number(courseId), hours }))
       .sort((a, b) => b.hours - a.hours);
@@ -58,9 +66,9 @@ export class Scheduler {
     // 4. Fill Slots
     for (const subject of sortedSubjects) {
       let hoursRemaining = subject.hours;
+      const teachers = input.courseTeachers?.[subject.courseId] || [];
       
       // Attempt to place sessions
-      // Strategy: Prioritize days with FEWEST sessions of this subject
       while (hoursRemaining > 0) {
         let placed = false;
         
@@ -80,15 +88,47 @@ export class Scheduler {
           if (dailyCount >= 2) continue;
 
           for (let p = 0; p < this.periodsPerDay; p++) {
-            // Check Blocked Constraints
-            const blockedSlots = input.blockedConstraints?.[subject.courseId];
-            if (blockedSlots && blockedSlots.includes(`${d}-${p}`)) {
-                continue; // Skip blocked slot
+            // Check if slot is already taken in current grid
+            if (this.grid[d][p].courseId) continue;
+
+            // Check Teacher Constraints & Conflicts
+            let teacherConflict = false;
+            
+            for (const teacher of teachers) {
+                // A. Check Teacher Constraints (Blocked Slots)
+                const blockedSlots = input.teacherConstraints?.[teacher.id];
+                if (blockedSlots && blockedSlots.includes(`${d}-${p}`)) {
+                    teacherConflict = true;
+                    break;
+                }
+
+                // B. Check Cross-Cohort Conflicts (Existing Slots)
+                // If this teacher is teaching ANY course in ANY other cohort at this time
+                if (input.existingSlots) {
+                    const isBusy = input.existingSlots.some(slot => {
+                        if (slot.day === d && slot.period === p) {
+                            // Check if the course in the other slot is taught by this teacher
+                            const otherCourseId = slot.courseId;
+                            if (otherCourseId) {
+                                const otherTeachers = input.courseTeachers?.[otherCourseId];
+                                if (otherTeachers && otherTeachers.some(t => t.id === teacher.id)) {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    });
+
+                    if (isBusy) {
+                        teacherConflict = true;
+                        break;
+                    }
+                }
             }
 
-            if (!this.grid[d][p].courseId) {
-              candidates.push({ d, p, dailyCount });
-            }
+            if (teacherConflict) continue;
+
+            candidates.push({ d, p, dailyCount });
           }
         }
 

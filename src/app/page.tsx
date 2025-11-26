@@ -5,13 +5,17 @@ import { useRouter } from 'next/navigation';
 import CohortSelector from '@/components/CohortSelector';
 import WeeklyGrid, { Slot } from '@/components/WeeklyGrid';
 import WorkloadInput from '@/components/WorkloadInput';
-import { Cohort, Subject, MOCK_SUBJECTS } from '@/lib/types';
+import TeachersSection from '@/components/TeachersSection';
+import SessionCreationPanel from '@/components/SessionCreationPanel';
+import { Cohort, Subject, MOCK_SUBJECTS, Teacher } from '@/lib/types';
 
 export default function Home() {
   const [selectedCohorts, setSelectedCohorts] = useState<Cohort[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [periodCount, setPeriodCount] = useState(5);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [courseTeachers, setCourseTeachers] = useState<Record<number, Teacher[]>>({});
+  const [teacherConstraints, setTeacherConstraints] = useState<Record<number, string[]>>({});
   const router = useRouter();
 
   useEffect(() => {
@@ -53,6 +57,46 @@ export default function Home() {
     fetchSubjects();
   }, [selectedCohorts]);
 
+  // Load recurring sessions when cohorts are selected
+  useEffect(() => {
+    async function loadRecurringSessions() {
+      if (selectedCohorts.length === 0) {
+        return;
+      }
+
+      try {
+        const cohortIdsParam = selectedCohorts.map(c => c.id).join(',');
+        const res = await fetch(`/api/schedule/recurring?cohortIds=${cohortIdsParam}`);
+
+        if (res.ok) {
+          const recurringSessions = await res.json();
+
+          // Convert recurring sessions to Slot format
+          const recurringSlots: Slot[] = recurringSessions.map((session: any) => ({
+            day: session.dayOfWeek,
+            period: session.period,
+            subject: session.courseName,
+            cohortId: session.cohortId,
+            cohortName: session.cohortName,
+            courseId: session.courseId,
+            isLocked: true, // Mark as locked since they're already created
+          }));
+
+          // Merge with existing manually created slots
+          setSlots(prevSlots => {
+            // Remove any recurring slots from previous load
+            const manualSlots = prevSlots.filter(s => !s.isLocked);
+            return [...manualSlots, ...recurringSlots];
+          });
+        }
+      } catch (e) {
+        console.error('Failed to load recurring sessions', e);
+      }
+    }
+
+    loadRecurringSessions();
+  }, [selectedCohorts]);
+
   const handleLogout = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     router.push('/login');
@@ -75,6 +119,14 @@ export default function Home() {
     });
   };
 
+  const handleTeachersUpdate = (
+    newCourseTeachers: Record<number, Teacher[]>,
+    newTeacherConstraints: Record<number, string[]>
+  ) => {
+    setCourseTeachers(newCourseTeachers);
+    setTeacherConstraints(newTeacherConstraints);
+  };
+
   return (
     <main className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto">
@@ -84,6 +136,18 @@ export default function Home() {
               Moodle Attendance Automation
             </h1>
             <div className="flex gap-4 items-center">
+              <button
+                onClick={() => router.push('/history')}
+                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                📜 History
+              </button>
+              <button
+                onClick={() => router.push('/view')}
+                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+              >
+                👁️ Teacher View
+              </button>
               <button
                 onClick={() => router.push('/individual')}
                 className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
@@ -105,12 +169,15 @@ export default function Home() {
           {/* Sidebar / Controls */}
           <div className="lg:col-span-1 space-y-6">
             <CohortSelector onSelect={setSelectedCohorts} />
+
             <WorkloadInput
               cohortIds={selectedCohorts.map(c => c.id)}
               onScheduleGenerated={handleScheduleGenerated}
               allSlots={slots}
               subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
               periodsPerDay={periodCount}
+              courseTeachers={courseTeachers}
+              teacherConstraints={teacherConstraints}
             />
           </div>
 
@@ -174,6 +241,25 @@ export default function Home() {
                 onPeriodsChange={setPeriodCount}
               />
             </div>
+
+            {/* Teachers Section - Moved below the timetable */}
+            <div className="mt-6"> {/* Added margin-top for spacing */}
+              <TeachersSection
+                subjects={subjects}
+                onUpdate={handleTeachersUpdate}
+                periodsPerDay={periodCount}
+              />
+            </div>
+
+            {/* Session Creation Panel - For bulk creation */}
+            <SessionCreationPanel
+              slots={slots}
+              cohortIds={selectedCohorts.map(c => c.id)}
+              onSessionsCreated={() => {
+                // Optionally refresh slots or show success message
+                console.log('Sessions created successfully');
+              }}
+            />
           </div>
         </div>
       </div>

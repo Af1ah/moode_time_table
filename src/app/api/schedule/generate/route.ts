@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { cohortWorkloads, lockedSlots, periodsPerDay, blockedConstraints } = body;
+    const { cohortWorkloads, lockedSlots, periodsPerDay, teacherConstraints, courseTeachers } = body;
 
     if (!cohortWorkloads) {
       return NextResponse.json({ error: 'Missing cohortWorkloads' }, { status: 400 });
@@ -25,7 +25,9 @@ export async function POST(request: Request) {
             lockedSlots: cohortLockedSlots,
             workload: workload as any,
             periodsPerDay: periodsPerDay || 8,
-            blockedConstraints
+            teacherConstraints,
+            courseTeachers,
+            existingSlots: allGeneratedSlots // Pass already generated slots for conflict detection
         });
 
         // Add cohortId to generated slots

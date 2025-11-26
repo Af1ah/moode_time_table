@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write",
-    "clean": "rm -rf .next node_modules .cache package-lock.json && echo 'Cleaned: .next, node_modules, .cache, package-lock.json'"
+    "clean": "rm -rf .next node_modules .cache package-lock.json && echo 'Cleaned: .next, node_modules, .cache, package-lock.json'",
+    "db:migrate:recurring": "psql $DATABASE_URL -f db/recurring_sessions.sql"
   },
   "dependencies": {
     "@prisma/client": "5.22.0",

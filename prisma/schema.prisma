@@ -54,3 +54,35 @@ model SyncLog {
   message         String
   sessionsCreated Int
 }
+
+model RecurringSession {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @map("id")
+  cohortId     Int      @map("cohort_id")
+  cohortName   String   @map("cohort_name")
+  courseId     Int      @map("course_id")
+  courseName   String   @map("course_name")
+  dayOfWeek    Int      @map("day_of_week") // 0=Mon, 4=Fri
+  period       Int      @map("period")
+  startDate    DateTime @map("start_date")
+  endDate      DateTime @map("end_date")
+  description  String   @default("regular class") @map("description")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([cohortId, startDate, endDate], map: "idx_recurring_sessions_cohort_dates")
+  @@map("recurring_sessions")
+}
+
+model SessionInstance {
+  id                  String    @id @default(dbgenerated("gen_random_uuid()"))
+  recurringSessionId  String?   @map("recurring_session_id")
+  cohortId            Int       @map("cohort_id")
+  courseId            Int       @map("course_id")
+  sessionDate         DateTime  @map("session_date") @db.Date
+  period              Int       @map("period")
+  moodleSessionId     Int?      @map("moodle_session_id")
+  createdAt           DateTime  @default(now()) @map("created_at")
+
+  @@unique([cohortId, courseId, sessionDate, period])
+  @@index([cohortId, sessionDate, period], map: "idx_session_instances_lookup")
+  @@map("session_instances")
+}

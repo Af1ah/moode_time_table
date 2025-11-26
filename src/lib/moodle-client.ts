@@ -127,6 +127,56 @@ class MoodleClient {
     const newInstance = await this.addAttendance(courseId, name);
     return newInstance.id;
   }
+
+  async getCourseTeachers(courseId: number) {
+    // Get all enrolled users for the course
+    const users = await this.call('core_enrol_get_enrolled_users', MOODLE_TOKEN!, {
+      courseid: courseId
+    });
+
+    // Filter for teachers (roleid 3 = editing teacher, roleid 4 = non-editing teacher)
+    // In Moodle, teachers usually have roles like 'editingteacher' or 'teacher'
+    const teachers = users.filter((user: any) => {
+      return user.roles && user.roles.some((role: any) => 
+        role.shortname === 'editingteacher' || 
+        role.shortname === 'teacher' ||
+        role.roleid === 3 || 
+        role.roleid === 4
+      );
+    });
+
+    return teachers.map((teacher: any) => ({
+      id: teacher.id,
+      fullname: teacher.fullname,
+      email: teacher.email,
+      roles: teacher.roles
+    }));
+  }
+
+  async getTeachersForCourses(courseIds: number[]) {
+    const results: Record<number, any[]> = {};
+    
+    // Run requests in parallel
+    await Promise.all(courseIds.map(async (courseId) => {
+      try {
+        const teachers = await this.getCourseTeachers(courseId);
+        results[courseId] = teachers;
+      } catch (error) {
+        console.warn(`Failed to fetch teachers for course ${courseId}`, error);
+        results[courseId] = [];
+      }
+    }));
+
+    return results;
+  }
+
+  async getTodaySessions(userId: number) {
+    // Get courses with today's sessions for a specific teacher
+    return this.call('mod_attendance_get_courses_with_today_sessions', MOODLE_TOKEN!, {
+      userid: userId
+    });
+  }
+
   // --- Auth Functions ---
 
   async getToken(username: string, password: string, service: string = 'moodle_mobile_app') {

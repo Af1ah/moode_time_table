@@ -16,10 +16,12 @@ echo "Connecting to: $MASKED_URL"
 
 echo "Initializing database..."
 psql "$DATABASE_URL" -f db/schema.sql
+psql "$DATABASE_URL" -f db/recurring_sessions.sql
+psql "$DATABASE_URL" -f db/session_instances.sql
 
 if [ $? -eq 0 ]; then
     echo "Database initialized successfully!"
-else
+else 
     echo "Failed to initialize database."
     exit 1
 fi

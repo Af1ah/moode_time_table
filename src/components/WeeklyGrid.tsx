@@ -17,6 +17,7 @@ export interface Slot {
     startTime?: string; // HH:mm
     endTime?: string;   // HH:mm
     cohortId?: number;
+    cohortName?: string;
 }
 
 interface WeeklyGridProps {

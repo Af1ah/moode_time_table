@@ -1,7 +1,15 @@
+export interface Teacher {
+  id: number;
+  fullname: string;
+  email?: string;
+  roles?: any[];
+}
+
 export interface Subject {
   id: number;
   name: string;
   cohortIds: number[];
+  teachers?: Teacher[];
 }
 
 export const MOCK_SUBJECTS: Subject[] = [

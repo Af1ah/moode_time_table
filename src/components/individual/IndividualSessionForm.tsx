@@ -10,6 +10,8 @@ export default function IndividualSessionForm() {
     const [selectedCourse, setSelectedCourse] = useState<number | null>(null);
     const [attendanceInstances, setAttendanceInstances] = useState<any[]>([]);
     const [selectedAttendanceId, setSelectedAttendanceId] = useState<number | string | null>(null); // Can be number (existing) or 'CREATE_NEW'
+    const [teachers, setTeachers] = useState<any[]>([]);
+    const [loadingTeachers, setLoadingTeachers] = useState(false);
     const [date, setDate] = useState('');
     const [time, setTime] = useState('09:00');
     const [duration, setDuration] = useState(60); // minutes
@@ -74,7 +76,11 @@ export default function IndividualSessionForm() {
 
             setLoadingInstances(true);
             try {
-                const res = await fetch(`/api/individual/attendance-instances?courseId=${selectedCourse}`);
+                const course = courses.find(c => c.id === selectedCourse);
+                const courseName = course?.name || '';
+                const res = await fetch(
+                    `/api/individual/attendance-instances?courseId=${selectedCourse}&courseName=${encodeURIComponent(courseName)}`
+                );
                 if (res.ok) {
                     const instances = await res.json();
                     setAttendanceInstances(instances);
@@ -93,6 +99,35 @@ export default function IndividualSessionForm() {
             }
         }
         fetchAttendanceInstances();
+    }, [selectedCourse, courses]);
+
+    // Fetch teachers when course changes
+    useEffect(() => {
+        async function fetchTeachers() {
+            if (!selectedCourse) {
+                setTeachers([]);
+                return;
+            }
+
+            setLoadingTeachers(true);
+            try {
+                const res = await fetch(`/api/moodle/course-teachers?courseId=${selectedCourse}`);
+                if (res.ok) {
+                    const teacherData = await res.json();
+                    setTeachers(teacherData);
+                    console.log('[Teachers] Fetched teachers:', teacherData);
+                } else {
+                    console.error('[Teachers] Failed to load teachers');
+                    setTeachers([]);
+                }
+            } catch (e) {
+                console.error('[Teachers] Failed to fetch teachers', e);
+                setTeachers([]);
+            } finally {
+                setLoadingTeachers(false);
+            }
+        }
+        fetchTeachers();
     }, [selectedCourse]);
 
     // Handle creating a new attendance instance
@@ -398,6 +433,29 @@ export default function IndividualSessionForm() {
                                 <p className="mt-1 text-sm text-gray-500">Please select a cohort first</p>
                             )}
                         </div>
+
+                        {/* Teachers Display */}
+                        {selectedCourse && (
+                            <div className="bg-gray-50 border border-gray-200 rounded-md p-4">
+                                <h4 className="text-sm font-medium text-gray-700 mb-2">Course Teachers</h4>
+                                {loadingTeachers ? (
+                                    <p className="text-sm text-gray-500">Loading teachers...</p>
+                                ) : teachers.length > 0 ? (
+                                    <div className="flex flex-wrap gap-2">
+                                        {teachers.map((teacher: any) => (
+                                            <span
+                                                key={teacher.id}
+                                                className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800"
+                                            >
+                                                {teacher.fullname}
+                                            </span>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-gray-500">No teachers found for this course</p>
+                                )}
+                            </div>
+                        )}
 
                         {/* Attendance Instance Selection */}
                         <div>

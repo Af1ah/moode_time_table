@@ -7,16 +7,18 @@ import { Subject } from '@/lib/types';
 interface AdvancedConstraintsModalProps {
     isOpen: boolean;
     onClose: () => void;
-    subject: Subject;
+    entityName: string;
+    entityId: number;
     periodsPerDay: number;
-    onSave: (subjectId: number, blockedSlots: string[]) => void; // blockedSlots: "day-period" strings
+    onSave: (id: number, blockedSlots: string[]) => void; // blockedSlots: "day-period" strings
     initialBlockedSlots: string[];
+    type?: 'subject' | 'teacher';
 }
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
 export default function AdvancedConstraintsModal({
-    isOpen, onClose, subject, periodsPerDay, onSave, initialBlockedSlots
+    isOpen, onClose, entityName, entityId, periodsPerDay, onSave, initialBlockedSlots, type = 'subject'
 }: AdvancedConstraintsModalProps) {
     const [blocked, setBlocked] = useState<Set<string>>(new Set(initialBlockedSlots));
 
@@ -97,7 +99,7 @@ export default function AdvancedConstraintsModal({
     };
 
     const handleSave = () => {
-        onSave(subject.id, Array.from(blocked));
+        onSave(entityId, Array.from(blocked));
         onClose();
     };
 
@@ -106,7 +108,7 @@ export default function AdvancedConstraintsModal({
             <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 m-4 max-h-[90vh] overflow-y-auto">
                 <div className="flex justify-between items-center mb-6">
                     <h2 className="text-xl font-bold text-gray-900">
-                        Advanced Constraints: <span className="text-indigo-600">{subject.name}</span>
+                        Advanced Constraints: <span className="text-indigo-600">{entityName}</span>
                     </h2>
                     <button onClick={onClose} className="text-gray-500 hover:text-gray-700">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
