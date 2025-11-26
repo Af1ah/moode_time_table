@@ -1,24 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Subject, Teacher } from '@/lib/types';
-// import AdvancedConstraintsModal from './AdvancedConstraintsModal'; // Removed
-// import clsx from 'clsx'; // Removed
+import SubjectCard from './SubjectCard';
+import AdvancedConstraintsModal from './AdvancedConstraintsModal';
 
 interface WorkloadInputProps {
     cohortIds: number[];
     onScheduleGenerated: (slots: any[]) => void;
-    allSlots: any[]; // Changed from lockedSlots to allSlots to count everything
+    allSlots: any[];
     subjects: Subject[];
     periodsPerDay: number;
     courseTeachers: Record<number, Teacher[]>;
     teacherConstraints: Record<number, string[]>;
+    onTeachersUpdate: (courseTeachers: Record<number, Teacher[]>, teacherConstraints: Record<number, string[]>) => void;
 }
 
 export default function WorkloadInput(props: WorkloadInputProps) {
-    const { cohortIds, onScheduleGenerated, allSlots, subjects, courseTeachers, teacherConstraints } = props;
+    const { cohortIds, onScheduleGenerated, allSlots, subjects, courseTeachers, teacherConstraints, onTeachersUpdate } = props;
     const [workloads, setWorkloads] = useState<Record<number, number>>({});
     const [generating, setGenerating] = useState(false);
-    // const [activeSubject, setActiveSubject] = useState<Subject | null>(null); // Removed
-    // const [blockedConstraints, setBlockedConstraints] = useState<Record<number, string[]>>({}); // subjectId -> ["0-1", "2-3"] // Removed
+    const [activeTeacher, setActiveTeacher] = useState<{ teacher: Teacher, courseName: string } | null>(null);
 
     // Filter subjects based on selected cohorts
     const filteredSubjects = subjects.filter(s =>
@@ -26,6 +26,50 @@ export default function WorkloadInput(props: WorkloadInputProps) {
     );
 
     const maxWorkload = Math.min(props.periodsPerDay * 5, 15);
+
+    // Fetch all teachers for the dropdown
+    useEffect(() => {
+        async function fetchAllTeachers() {
+            try {
+                // We need to fetch teachers for ALL subjects to populate the dropdown
+                // Or maybe just fetch all teachers in the system?
+                // For now, let's fetch teachers for the current subjects
+                const subjectIds = filteredSubjects.map(s => s.id);
+                if (subjectIds.length === 0) return;
+
+                const res = await fetch('/api/moodle/teachers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ courseIds: subjectIds }),
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.success) {
+                        // Flatten and unique teachers
+                        const all: Teacher[] = [];
+                        const seen = new Set();
+                        Object.values(data.teachers).forEach((list: any) => {
+                            (list as Teacher[]).forEach(t => {
+                                if (!seen.has(t.id)) {
+                                    seen.add(t.id);
+                                    all.push(t);
+                                }
+                            });
+                        });
+
+                        // Also update courseTeachers if not already set
+                        // Actually, we should merge with existing
+                        const merged = { ...courseTeachers, ...data.teachers };
+                        onTeachersUpdate(merged, teacherConstraints);
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+        fetchAllTeachers();
+    }, [subjects]); // Run when subjects change
 
     const handleHourChange = (subjectId: number, hours: number) => {
         // Enforce max limit
@@ -36,12 +80,22 @@ export default function WorkloadInput(props: WorkloadInputProps) {
         }));
     };
 
-    // const handleConstraintsSave = (subjectId: number, blockedSlots: string[]) => { // Removed
-    //     setBlockedConstraints(prev => ({
-    //         ...prev,
-    //         [subjectId]: blockedSlots
-    //     }));
-    // };
+    const handleRemoveTeacher = (courseId: number, teacherId: number) => {
+        const currentTeachers = courseTeachers[courseId] || [];
+        const newCourseTeachers = {
+            ...courseTeachers,
+            [courseId]: currentTeachers.filter(t => t.id !== teacherId)
+        };
+        onTeachersUpdate(newCourseTeachers, teacherConstraints);
+    };
+
+    const handleConstraintsSave = (teacherId: number, blockedSlots: string[]) => {
+        const newConstraints = {
+            ...teacherConstraints,
+            [teacherId]: blockedSlots
+        };
+        onTeachersUpdate(courseTeachers, newConstraints);
+    };
 
     const handleGenerate = async () => {
         if (cohortIds.length === 0) return;
@@ -67,21 +121,6 @@ export default function WorkloadInput(props: WorkloadInputProps) {
                 const courseId = Number(courseIdStr);
                 const subject = subjects.find(s => s.id === courseId);
                 if (subject && subject.cohortIds) {
-                    // A subject might belong to multiple cohorts, but usually in a timetable context
-                    // a specific instance belongs to one.
-                    // However, our mock data says `cohortIds: [1, 2]`.
-                    // If a subject is shared, does it mean they attend together?
-                    // If so, it's one session for both.
-                    // But the scheduler generates per cohort.
-                    // If they attend together, it's a constraint that they must be at the same time.
-                    // For simplicity, let's assume if a subject is in multiple cohorts,
-                    // we schedule it for EACH cohort independently (separate sessions)
-                    // OR we pick the first matching selected cohort.
-                    // Given "row wise only allow thier courses only", let's assign to all matching selected cohorts.
-                    // But wait, if I assign 5 hours of Math to Cohort A and 5 to Cohort B, is it the same teacher?
-                    // The user didn't specify teacher constraints.
-                    // Let's add the workload to ALL matching selected cohorts.
-
                     subject.cohortIds.forEach(cId => {
                         if (cohortIds.includes(cId)) {
                             cohortWorkloads[cId][courseId] = hours;
@@ -126,69 +165,23 @@ export default function WorkloadInput(props: WorkloadInputProps) {
     if (cohortIds.length === 0) return null;
 
     return (
-        <div className="bg-white shadow-sm rounded-lg border border-gray-200 p-4 mt-6">
-            <h3 className="text-lg font-medium text-gray-900 mb-4">Step 3: Define Workload</h3>
-            <div className="space-y-4">
+        <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4">
                 {filteredSubjects.map((subject) => {
                     const scheduledCount = allSlots.filter(s => s.courseId === subject.id).length;
-                    // Actually, we should pass ALL slots to count properly if we want to show "Remaining" after generation.
-                    // But props.lockedSlots only has locked ones.
-                    // Let's assume for now we only count locked ones until we update the prop.
-
-                    const target = workloads[subject.id] || 0;
-                    const remaining = Math.max(0, target - scheduledCount);
-                    // const isBlocked = (blockedConstraints[subject.id]?.length || 0) > 0; // Removed
 
                     return (
-                        <div key={subject.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-md gap-3">
-                            <div className="flex-1 min-w-0">
-                                <span className="font-medium text-gray-700 block truncate" title={subject.name}>{subject.name}</span>
-                                <div className="text-xs text-gray-500 mt-1 flex flex-wrap gap-x-2 gap-y-1">
-                                    <span className={scheduledCount > target ? "text-red-600 font-bold" : ""}>
-                                        Sch: {scheduledCount}
-                                    </span>
-                                    <span className="text-gray-300">|</span>
-                                    <span className={remaining > 0 ? "text-amber-600" : "text-green-600"}>
-                                        Rem: {remaining}
-                                    </span>
-                                    {/* {isBlocked && ( // Removed
-                                        <div className="w-full sm:w-auto pt-1 sm:pt-0">
-                                            <span className="text-indigo-600 font-medium text-[10px] bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
-                                                Constraints Active
-                                            </span>
-                                        </div>
-                                    )} */}
-                                </div>
-                            </div>
-                            <div className="flex items-center justify-end space-x-2 shrink-0">
-                                <label htmlFor={`hours-${subject.id}`} className="text-sm text-gray-500">
-                                    Max:
-                                </label>
-                                <input
-                                    id={`hours-${subject.id}`}
-                                    type="number"
-                                    min="0"
-                                    max={maxWorkload}
-                                    className="w-16 p-1 border border-gray-300 rounded text-center text-gray-900 bg-white focus:ring-indigo-500 focus:border-indigo-500"
-                                    value={workloads[subject.id] || 0}
-                                    onChange={(e) => handleHourChange(subject.id, parseInt(e.target.value) || 0)}
-                                />
-                                {/* <button // Removed
-                                    className={clsx(
-                                        "w-8 h-8 flex items-center justify-center rounded transition-colors",
-                                        isBlocked
-                                            ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                                            : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
-                                    )}
-                                    title="Advanced Constraints"
-                                    onClick={() => setActiveSubject(subject)}
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                                    </svg>
-                                </button> */}
-                            </div>
-                        </div>
+                        <SubjectCard
+                            key={subject.id}
+                            subject={subject}
+                            hours={workloads[subject.id] || 0}
+                            maxHours={maxWorkload}
+                            scheduledCount={scheduledCount}
+                            onHoursChange={(h) => handleHourChange(subject.id, h)}
+                            assignedTeachers={courseTeachers[subject.id] || []}
+                            onRemoveTeacher={(tId) => handleRemoveTeacher(subject.id, tId)}
+                            onAdvancedConstraints={(t) => setActiveTeacher({ teacher: t, courseName: subject.name })}
+                        />
                     );
                 })}
             </div>
@@ -196,11 +189,24 @@ export default function WorkloadInput(props: WorkloadInputProps) {
                 <button
                     onClick={handleGenerate}
                     disabled={generating}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50"
+                    className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-4 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:shadow-none font-bold text-lg"
                 >
-                    {generating ? 'Generating...' : 'Auto-Generate Schedule'}
+                    {generating ? 'Generating Schedule...' : 'Auto-Generate Schedule'}
                 </button>
             </div>
+
+            {activeTeacher && (
+                <AdvancedConstraintsModal
+                    isOpen={!!activeTeacher}
+                    onClose={() => setActiveTeacher(null)}
+                    entityName={activeTeacher.teacher.fullname}
+                    entityId={activeTeacher.teacher.id}
+                    periodsPerDay={props.periodsPerDay}
+                    onSave={handleConstraintsSave}
+                    initialBlockedSlots={teacherConstraints[activeTeacher.teacher.id] || []}
+                    type="teacher"
+                />
+            )}
         </div>
     );
 }

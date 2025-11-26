@@ -2,266 +2,201 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import CohortSelector from '@/components/CohortSelector';
-import WeeklyGrid, { Slot } from '@/components/WeeklyGrid';
-import WorkloadInput from '@/components/WorkloadInput';
-import TeachersSection from '@/components/TeachersSection';
-import SessionCreationPanel from '@/components/SessionCreationPanel';
-import { Cohort, Subject, MOCK_SUBJECTS, Teacher } from '@/lib/types';
+import clsx from 'clsx';
 
-export default function Home() {
-  const [selectedCohorts, setSelectedCohorts] = useState<Cohort[]>([]);
-  const [slots, setSlots] = useState<Slot[]>([]);
-  const [periodCount, setPeriodCount] = useState(5);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [courseTeachers, setCourseTeachers] = useState<Record<number, Teacher[]>>({});
-  const [teacherConstraints, setTeacherConstraints] = useState<Record<number, string[]>>({});
+interface Session {
+  id: number;
+  time: string;
+  courseName: string;
+  cohortName: string;
+  period: number;
+  sessionId: number;
+  courseModuleId?: number;
+  attendanceId?: number;
+  description?: string;
+}
+
+export default function TeacherViewPage() {
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [date, setDate] = useState<string>('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
-    async function fetchSubjects() {
-      if (selectedCohorts.length === 0) {
-        setSubjects([]);
+    fetchTodaySessions();
+    // Auto-refresh every 5 minutes
+    const interval = setInterval(fetchTodaySessions, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const fetchTodaySessions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const res = await fetch(`/api/sessions/today?t=${Date.now()}`);
+      if (res.status === 401) {
+        router.push('/login');
         return;
       }
 
-      try {
-        const allCourses: Record<number, Subject> = {};
-
-        for (const cohort of selectedCohorts) {
-          const res = await fetch(`/api/moodle/cohort-courses?cohortId=${cohort.id}`);
-          if (res.ok) {
-            const courses = await res.json();
-            courses.forEach((c: any) => {
-              if (!allCourses[c.id]) {
-                allCourses[c.id] = {
-                  id: c.id,
-                  name: c.fullname,
-                  cohortIds: [cohort.id]
-                };
-              } else {
-                // Add cohortId if not already present
-                if (!allCourses[c.id].cohortIds.includes(cohort.id)) {
-                  allCourses[c.id].cohortIds.push(cohort.id);
-                }
-              }
-            });
-          }
-        }
-
-        setSubjects(Object.values(allCourses));
-      } catch (e) {
-        console.error('Failed to fetch subjects', e);
+      if (!res.ok) {
+        throw new Error("Failed to fetch today's sessions");
       }
+
+      const data = await res.json();
+      console.log("Fetched sessions:", data.sessions);
+
+      // ⭐ FIX: Save array to state
+      setSessions(data.sessions);
+
+      // Save fetched date
+      setDate(data.date || new Date().toISOString().split('T')[0]);
+
+    } catch (err: any) {
+      console.error("Error fetching sessions:", err);
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    fetchSubjects();
-  }, [selectedCohorts]);
-
-  // Load recurring sessions when cohorts are selected
-  useEffect(() => {
-    async function loadRecurringSessions() {
-      if (selectedCohorts.length === 0) {
-        return;
-      }
-
-      try {
-        const cohortIdsParam = selectedCohorts.map(c => c.id).join(',');
-        const res = await fetch(`/api/schedule/recurring?cohortIds=${cohortIdsParam}`);
-
-        if (res.ok) {
-          const recurringSessions = await res.json();
-
-          // Convert recurring sessions to Slot format
-          const recurringSlots: Slot[] = recurringSessions.map((session: any) => ({
-            day: session.dayOfWeek,
-            period: session.period,
-            subject: session.courseName,
-            cohortId: session.cohortId,
-            cohortName: session.cohortName,
-            courseId: session.courseId,
-            isLocked: true, // Mark as locked since they're already created
-          }));
-
-          // Merge with existing manually created slots
-          setSlots(prevSlots => {
-            // Remove any recurring slots from previous load
-            const manualSlots = prevSlots.filter(s => !s.isLocked);
-            return [...manualSlots, ...recurringSlots];
-          });
-        }
-      } catch (e) {
-        console.error('Failed to load recurring sessions', e);
-      }
-    }
-
-    loadRecurringSessions();
-  }, [selectedCohorts]);
-
-  const handleLogout = async () => {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    router.push('/login');
-    router.refresh();
   };
 
-  const handleScheduleGenerated = (newSlots: Slot[]) => {
-    setSlots(newSlots);
-  };
 
-  const handleSlotChange = (updatedSlot: Slot) => {
-    setSlots((prev) => {
-      const existingIndex = prev.findIndex(s => s.day === updatedSlot.day && s.period === updatedSlot.period && s.cohortId === updatedSlot.cohortId);
-      if (existingIndex >= 0) {
-        const newSlots = [...prev];
-        newSlots[existingIndex] = updatedSlot;
-        return newSlots;
-      }
-      return [...prev, updatedSlot];
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
   };
 
-  const handleTeachersUpdate = (
-    newCourseTeachers: Record<number, Teacher[]>,
-    newTeacherConstraints: Record<number, string[]>
-  ) => {
-    setCourseTeachers(newCourseTeachers);
-    setTeacherConstraints(newTeacherConstraints);
+  const handleCardClick = (session: Session) => {
+    console.log('Card clicked (Full Object):', JSON.stringify(session, null, 2));
+    const moodleBaseUrl = 'http://localhost'; // Or get from env if exposed
+
+    if (session.courseModuleId) {
+      // Redirect using Course Module ID (Preferred)
+      const url = `${moodleBaseUrl}/mod/attendance/take.php?id=${session.courseModuleId}&sessionid=${session.sessionId}&grouptype=0`;
+      console.log('Opening (CMID):', url);
+      window.open(url, '_self');
+    } else if (session.attendanceId) {
+      // Fallback to Attendance Instance ID (might not work for take.php)
+      const url = `${moodleBaseUrl}/mod/attendance/take.php?a=${session.attendanceId}&sessionid=${session.sessionId}&grouptype=0`;
+      console.log('Opening (AttendanceID):', url);
+      window.open(url, '_self');
+    } else {
+      console.error('Missing IDs for session:', session);
+      alert('Missing Moodle IDs for this session. Cannot redirect.\nCheck console for details.');
+    }
   };
 
   return (
-    <main className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Moodle Attendance Automation
-            </h1>
-            <div className="flex gap-4 items-center">
-              <button
-                onClick={() => router.push('/history')}
-                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-              >
-                📜 History
-              </button>
-              <button
-                onClick={() => router.push('/view')}
-                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-              >
-                👁️ Teacher View
-              </button>
-              <button
-                onClick={() => router.push('/individual')}
-                className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
-              >
-                Individual Session →
-              </button>
-              <button
-                onClick={handleLogout}
-                className="text-sm text-gray-600 hover:text-gray-900 font-medium"
-              >
-                Sign Out
-              </button>
-            </div>
+    <main className="min-h-screen bg-[#F9FAFB] py-6 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-2xl mx-auto space-y-4 sm:space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">Today's Sessions</h1>
+            {date && (
+              <p className="text-base sm:text-lg text-gray-500 mt-0.5 sm:mt-1">{formatDate(date)}</p>
+            )}
           </div>
-          <p className="text-center text-gray-500 mb-8 -mt-6">Set-and-Forget Hybrid Scheduling Engine</p>
+          <div className="flex gap-2 self-start sm:self-auto">
+            <button
+              onClick={() => router.push('/wizard')}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-xl font-medium shadow-sm hover:bg-indigo-700 transition-colors"
+            >
+              Manage Timetable
+            </button>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Sidebar / Controls */}
-          <div className="lg:col-span-1 space-y-6">
-            <CohortSelector onSelect={setSelectedCohorts} />
-
-            <WorkloadInput
-              cohortIds={selectedCohorts.map(c => c.id)}
-              onScheduleGenerated={handleScheduleGenerated}
-              allSlots={slots}
-              subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
-              periodsPerDay={periodCount}
-              courseTeachers={courseTeachers}
-              teacherConstraints={teacherConstraints}
-            />
+        {/* Loading State */}
+        {loading && (
+          <div className="space-y-4">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-24 sm:h-28 bg-white rounded-xl border border-gray-100 shadow-sm animate-pulse" />
+            ))}
           </div>
+        )}
 
-          {/* Main Grid */}
-          <div className="lg:col-span-3">
-            <div className="bg-white shadow rounded-lg p-6">
-              <div className="flex justify-between items-center mb-4">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-800 mb-2">Weekly Timetable</h2>
-                  <p className="text-sm text-gray-500">
-                    <strong>Double-click</strong> any slot to edit and lock it.
-                  </p>
+        {/* Error State */}
+        {error && !loading && (
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-6 text-center">
+            <h3 className="text-red-800 font-semibold mb-2">Unable to load sessions</h3>
+            <p className="text-red-600 mb-4">{error}</p>
+            <button
+              onClick={fetchTodaySessions}
+              className="px-6 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors font-medium"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
+        {/* Sessions List */}
+        {!loading && !error && (
+          <div className="space-y-4">
+            {sessions.length > 0 ? (
+              sessions.map((session, index) => (
+                <div
+                  key={index}
+                  onClick={() => handleCardClick(session)}
+                  className="group bg-white rounded-xl border border-gray-200 p-4 sm:p-5 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <h3 className="text-lg sm:text-xl font-bold text-gray-900 group-hover:text-indigo-700 transition-colors leading-tight">
+                        {session.courseName}
+                      </h3>
+                      <p className="text-gray-500 text-sm font-medium mt-1">
+                        {session.cohortName}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-indigo-50 text-indigo-700 font-bold text-xs sm:text-sm shrink-0 ml-3">
+                      P{session.period + 1}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                    <div className="flex items-center gap-1.5 text-gray-600">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span className="font-medium text-sm">{session.time}</span>
+                    </div>
+
+                    <div className="flex items-center gap-1 text-indigo-600 font-medium text-xs sm:text-sm group-hover:translate-x-1 transition-transform">
+                      Take Attendance
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={async () => {
-                      if (selectedCohorts.length === 0) return alert('Select at least one cohort');
-                      try {
-                        const res = await fetch('/api/schedule/save', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ cohortIds: selectedCohorts.map(c => c.id), slots }),
-                        });
-                        if (res.ok) alert('Master Timetable Saved!');
-                        else alert('Save failed');
-                      } catch (e) {
-                        alert('Save error');
-                      }
-                    }}
-                    className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm text-sm"
-                  >
-                    Save Master Timetable
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (selectedCohorts.length === 0) return alert('Select at least one cohort');
-                      const date = new Date().toISOString().split('T')[0]; // Today
-                      try {
-                        const res = await fetch('/api/schedule/sync', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ date, cohortIds: selectedCohorts.map(c => c.id) }),
-                        });
-                        const data = await res.json();
-                        alert(JSON.stringify(data, null, 2));
-                      } catch (e) {
-                        alert('Sync failed');
-                      }
-                    }}
-                    className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow-sm text-sm"
-                  >
-                    Sync Today to Moodle
-                  </button>
+              ))
+            ) : (
+              <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+                <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
                 </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">No Sessions Today</h3>
+                <p className="text-gray-500">You don't have any classes scheduled for today.</p>
               </div>
-              <WeeklyGrid
-                selectedCohorts={selectedCohorts}
-                slots={slots}
-                onSlotChange={handleSlotChange}
-                subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
-                onPeriodsChange={setPeriodCount}
-              />
-            </div>
+            )}
 
-            {/* Teachers Section - Moved below the timetable */}
-            <div className="mt-6"> {/* Added margin-top for spacing */}
-              <TeachersSection
-                subjects={subjects}
-                onUpdate={handleTeachersUpdate}
-                periodsPerDay={periodCount}
-              />
+            {/* Auto-refresh indicator */}
+            <div className="flex justify-center items-center gap-2 text-sm text-gray-400 pt-4">
+              <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse"></span>
+              <p>Live updates • Last checked: {new Date().toLocaleTimeString()}</p>
             </div>
-
-            {/* Session Creation Panel - For bulk creation */}
-            <SessionCreationPanel
-              slots={slots}
-              cohortIds={selectedCohorts.map(c => c.id)}
-              onSessionsCreated={() => {
-                // Optionally refresh slots or show success message
-                console.log('Sessions created successfully');
-              }}
-            />
           </div>
-        </div>
+        )}
       </div>
     </main>
   );
