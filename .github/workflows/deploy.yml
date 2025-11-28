@@ -1,0 +1,33 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main  # Set this to 'master' if your branch is named master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          key: ${{ secrets.SSH_KEY }}
+          port: 22
+          script: |
+            # 1. Go to your project folder
+            cd /home/admin2/moode_time_table 
+            
+            # 2. Pull the latest code
+            git pull origin main
+            
+            # 3. Install new dependencies (if any)
+            npm install
+            
+            # 4. Build the app
+            npm run build
+            
+            # 5. Restart PM2 to apply changes
+            pm2 restart time_table
