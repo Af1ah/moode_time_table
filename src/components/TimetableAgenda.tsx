@@ -15,6 +15,14 @@ interface TimetableAgendaProps {
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
+const PERIOD_TIMES = [
+    { start: '09:30', end: '10:30' },
+    { start: '10:30', end: '11:25' },
+    { start: '11:40', end: '12:30' },
+    { start: '13:30', end: '14:30' },
+    { start: '14:30', end: '15:30' },
+];
+
 export default function TimetableAgenda({ selectedCohorts, slots, subjects, onSlotChange, periodCount }: TimetableAgendaProps) {
     const [selectedDay, setSelectedDay] = useState('Monday');
     const [editingSlot, setEditingSlot] = useState<{ slot: Slot, periodIndex: number, cohortId: number } | null>(null);
@@ -24,14 +32,16 @@ export default function TimetableAgenda({ selectedCohorts, slots, subjects, onSl
 
     const openEditSheet = (periodIndex: number, cohortId: number) => {
         const existingSlot = slots.find(s => s.day === selectedDay && s.period === periodIndex && s.cohortId === cohortId);
+        const times = PERIOD_TIMES[periodIndex] || { start: `${9 + periodIndex}:00`, end: `${10 + periodIndex}:00` };
+
         setEditingSlot({
             slot: existingSlot || {
                 day: selectedDay,
                 period: periodIndex,
                 cohortId: cohortId,
                 isLocked: false,
-                startTime: `${9 + periodIndex}:00`.padStart(5, '0'),
-                endTime: `${10 + periodIndex}:00`.padStart(5, '0')
+                startTime: times.start,
+                endTime: times.end
             },
             periodIndex,
             cohortId
@@ -90,8 +100,9 @@ export default function TimetableAgenda({ selectedCohorts, slots, subjects, onSl
 
                             {Array.from({ length: periodCount }).map((_, i) => {
                                 const slot = slots.find(s => s.day === selectedDay && s.period === i && s.cohortId === cohort.id);
-                                const startTime = `${9 + i}:00`;
-                                const endTime = `${10 + i}:00`;
+                                const times = PERIOD_TIMES[i] || { start: `${9 + i}:00`, end: `${10 + i}:00` };
+                                const startTime = times.start;
+                                const endTime = times.end;
 
                                 return (
                                     <div

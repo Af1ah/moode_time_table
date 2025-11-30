@@ -82,6 +82,8 @@ export default function SessionCreationPanel({ slots, cohortIds, onSessionsCreat
 
             <div className="space-y-4">
                 {/* Mode Toggle */}
+                {/* Mode Toggle - Hidden as Cron is not ready */}
+                {/* 
                 <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                         Scheduling Mode
@@ -108,7 +110,8 @@ export default function SessionCreationPanel({ slots, cohortIds, onSessionsCreat
                             Cron (Scheduled) - Coming Soon
                         </button>
                     </div>
-                </div>
+                </div> 
+                */}
 
                 {/* Date Range */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -155,8 +158,8 @@ export default function SessionCreationPanel({ slots, cohortIds, onSessionsCreat
                 {message && (
                     <div
                         className={`rounded-md p-4 ${message.type === 'success'
-                                ? 'bg-green-50 border border-green-200 text-green-800'
-                                : 'bg-red-50 border border-red-200 text-red-800'
+                            ? 'bg-green-50 border border-green-200 text-green-800'
+                            : 'bg-red-50 border border-red-200 text-red-800'
                             }`}
                     >
                         <p className="text-sm font-medium">{message.text}</p>

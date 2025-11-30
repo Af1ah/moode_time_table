@@ -13,6 +13,7 @@ interface WizardLayoutProps {
     isNextDisabled?: boolean;
     nextLabel?: string;
     children: ReactNode;
+    maxWidth?: string;
 }
 
 export default function WizardLayout({
@@ -25,12 +26,13 @@ export default function WizardLayout({
     isNextDisabled = false,
     nextLabel = 'Next',
     children,
+    maxWidth = 'max-w-3xl',
 }: WizardLayoutProps) {
     return (
         <div className="min-h-screen flex flex-col bg-[var(--background)] font-sans">
             {/* Header / Top Bar */}
             <header className="bg-white/80 backdrop-blur-md border-b border-[var(--border)] sticky top-0 z-20 transition-all duration-200">
-                <div className="max-w-3xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+                <div className={clsx("mx-auto px-4 sm:px-6 h-16 flex items-center justify-between", maxWidth)}>
                     <div className="flex items-center gap-3">
                         {/* Logo / Icon */}
                         <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-sm shadow-indigo-200">
@@ -62,7 +64,7 @@ export default function WizardLayout({
             </header>
 
             {/* Main Content */}
-            <main className="flex-1 max-w-3xl mx-auto w-full p-4 sm:p-6 pb-32 sm:pb-24">
+            <main className={clsx("flex-1 mx-auto w-full p-4 sm:p-6 pb-32 sm:pb-24", maxWidth)}>
                 <div className="mb-8 animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-2">{title}</h2>
                     <p className="text-gray-500 text-lg leading-relaxed">{subtitle}</p>
@@ -72,7 +74,7 @@ export default function WizardLayout({
 
             {/* Desktop Navigation Footer */}
             <div className="hidden sm:block fixed bottom-0 left-0 right-0 bg-white border-t border-[var(--border)] p-4 z-10">
-                <div className="max-w-3xl mx-auto flex justify-between items-center">
+                <div className={clsx("mx-auto flex justify-between items-center", maxWidth)}>
                     <button
                         onClick={onBack}
                         disabled={!onBack}

@@ -38,12 +38,27 @@ export default function WeeklyGrid({ selectedCohorts, slots, subjects, onSlotCha
     useEffect(() => {
         setPeriodTimes(prev => {
             const newTimes = [...prev];
+
+            // Define default times based on index
+            const defaults = [
+                { start: '09:30', end: '10:30' },
+                { start: '10:30', end: '11:25' },
+                { start: '11:40', end: '12:30' },
+                { start: '13:30', end: '14:30' },
+                { start: '14:30', end: '15:30' },
+            ];
+
             // Add missing times if count increased
             for (let i = prev.length; i < periodCount; i++) {
-                newTimes.push({
-                    start: `${9 + i}:00`.padStart(5, '0'),
-                    end: `${10 + i}:00`.padStart(5, '0')
-                });
+                if (i < defaults.length) {
+                    newTimes.push(defaults[i]);
+                } else {
+                    // Fallback for extra periods
+                    newTimes.push({
+                        start: `${9 + i}:00`.padStart(5, '0'),
+                        end: `${10 + i}:00`.padStart(5, '0')
+                    });
+                }
             }
             return newTimes;
         });

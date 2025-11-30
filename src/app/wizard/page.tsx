@@ -14,7 +14,7 @@ import { Cohort, Subject, MOCK_SUBJECTS, Teacher } from '@/lib/types';
 export default function Home() {
   // Wizard State
   const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = 3; // Reduced to 3 steps
+  const totalSteps = 2; // Reduced to 2 steps
 
   // Data State
   const [selectedCohorts, setSelectedCohorts] = useState<Cohort[]>([]);
@@ -151,8 +151,7 @@ export default function Home() {
   const getStepTitle = () => {
     switch (currentStep) {
       case 1: return 'Select Cohort';
-      case 2: return 'Define Workload & Teachers';
-      case 3: return 'Review & Generate';
+      case 2: return 'Schedule & Timetable';
       default: return '';
     }
   };
@@ -160,8 +159,7 @@ export default function Home() {
   const getStepSubtitle = () => {
     switch (currentStep) {
       case 1: return 'Choose the batch you want to schedule for.';
-      case 2: return 'Set hours and assign teachers for each subject.';
-      case 3: return 'Finalize the timetable and sync to Moodle.';
+      case 2: return 'Define workload, assign teachers, and finalize the timetable.';
       default: return '';
     }
   };
@@ -182,6 +180,7 @@ export default function Home() {
       onNext={currentStep < totalSteps ? handleNext : undefined}
       isNextDisabled={isNextDisabled()}
       nextLabel={currentStep === totalSteps ? 'Finish' : 'Next'}
+      maxWidth={currentStep === 2 ? 'max-w-[95rem]' : undefined}
     >
       {/* Step 1: Cohort Selection */}
       {currentStep === 1 && (
@@ -195,106 +194,113 @@ export default function Home() {
         </div>
       )}
 
-      {/* Step 2: Workload Definition & Teachers */}
+      {/* Step 2: Merged Workload & Timetable */}
       {currentStep === 2 && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-          <WorkloadInput
-            cohortIds={selectedCohorts.map(c => c.id)}
-            onScheduleGenerated={handleScheduleGenerated}
-            allSlots={slots}
-            subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
-            periodsPerDay={periodCount}
-            courseTeachers={courseTeachers}
-            teacherConstraints={teacherConstraints}
-            onTeachersUpdate={handleTeachersUpdate}
-          />
-        </div>
-      )}
+        <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
 
-      {/* Step 3: Timetable & Sync (Formerly Step 4) */}
-      {currentStep === 3 && (
-        <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-300">
-          <div className="bg-white shadow rounded-lg p-6">
-            <div className="flex justify-between items-center mb-4">
-              <div>
-                <h2 className="text-xl font-semibold text-gray-800 mb-2">Weekly Timetable</h2>
-                <p className="text-sm text-gray-500">
-                  <strong>Double-click</strong> any slot to edit and lock it.
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={async () => {
-                    if (selectedCohorts.length === 0) return alert('Select at least one cohort');
-                    try {
-                      const res = await fetch('/api/schedule/save', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ cohortIds: selectedCohorts.map(c => c.id), slots }),
-                      });
-                      if (res.ok) alert('Master Timetable Saved!');
-                      else alert('Save failed');
-                    } catch (e) {
-                      alert('Save error');
-                    }
-                  }}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm text-sm"
-                >
-                  Save Master
-                </button>
-                <button
-                  onClick={async () => {
-                    if (selectedCohorts.length === 0) return alert('Select at least one cohort');
-                    const date = new Date().toISOString().split('T')[0]; // Today
-                    try {
-                      const res = await fetch('/api/schedule/sync', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ date, cohortIds: selectedCohorts.map(c => c.id) }),
-                      });
-                      const data = await res.json();
-                      alert(JSON.stringify(data, null, 2));
-                    } catch (e) {
-                      alert('Sync failed');
-                    }
-                  }}
-                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow-sm text-sm"
-                >
-                  Sync Today
-                </button>
+            {/* Left Column: Workload Input */}
+            <div className="xl:col-span-3 space-y-6">
+              <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Workload & Teachers</h3>
+                <WorkloadInput
+                  cohortIds={selectedCohorts.map(c => c.id)}
+                  onScheduleGenerated={handleScheduleGenerated}
+                  allSlots={slots}
+                  subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
+                  periodsPerDay={periodCount}
+                  courseTeachers={courseTeachers}
+                  teacherConstraints={teacherConstraints}
+                  onTeachersUpdate={handleTeachersUpdate}
+                />
               </div>
             </div>
 
-            {/* Desktop View */}
-            <div className="hidden md:block">
-              <WeeklyGrid
-                selectedCohorts={selectedCohorts}
-                slots={slots}
-                onSlotChange={handleSlotChange}
-                subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
-                onPeriodsChange={setPeriodCount}
-              />
-            </div>
+            {/* Right Column: Timetable */}
+            <div className="xl:col-span-9 space-y-6">
+              <div className="bg-white shadow rounded-lg p-6">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-800 mb-1">Weekly Timetable</h2>
+                    <p className="text-sm text-gray-500">
+                      <strong>Double-click</strong> any slot to edit and lock it.
+                    </p>
+                  </div>
+                  <div className="flex gap-2 w-full sm:w-auto">
+                    <button
+                      onClick={async () => {
+                        if (selectedCohorts.length === 0) return alert('Select at least one cohort');
+                        try {
+                          const res = await fetch('/api/schedule/save', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ cohortIds: selectedCohorts.map(c => c.id), slots }),
+                          });
+                          if (res.ok) alert('Master Timetable Saved!');
+                          else alert('Save failed');
+                        } catch (e) {
+                          alert('Save error');
+                        }
+                      }}
+                      className="hidden md:block flex-1 sm:flex-none bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors shadow-sm text-sm font-medium"
+                    >
+                      Save Master
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (selectedCohorts.length === 0) return alert('Select at least one cohort');
+                        const date = new Date().toISOString().split('T')[0]; // Today
+                        try {
+                          const res = await fetch('/api/schedule/sync', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ date, cohortIds: selectedCohorts.map(c => c.id) }),
+                          });
+                          const data = await res.json();
+                          alert(JSON.stringify(data, null, 2));
+                        } catch (e) {
+                          alert('Sync failed');
+                        }
+                      }}
+                      className="hidden md:block flex-1 sm:flex-none bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow-sm text-sm font-medium"
+                    >
+                      Sync Today
+                    </button>
+                  </div>
+                </div>
 
-            {/* Mobile View */}
-            <div className="block md:hidden">
-              <TimetableAgenda
-                selectedCohorts={selectedCohorts}
+                {/* Desktop View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <WeeklyGrid
+                    selectedCohorts={selectedCohorts}
+                    slots={slots}
+                    onSlotChange={handleSlotChange}
+                    subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
+                    onPeriodsChange={setPeriodCount}
+                  />
+                </div>
+
+                {/* Mobile View */}
+                <div className="block md:hidden">
+                  <TimetableAgenda
+                    selectedCohorts={selectedCohorts}
+                    slots={slots}
+                    onSlotChange={handleSlotChange}
+                    subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
+                    periodCount={periodCount}
+                  />
+                </div>
+              </div>
+
+              <SessionCreationPanel
                 slots={slots}
-                onSlotChange={handleSlotChange}
-                subjects={subjects.length > 0 ? subjects : MOCK_SUBJECTS}
-                periodCount={periodCount}
+                cohortIds={selectedCohorts.map(c => c.id)}
+                onSessionsCreated={() => {
+                  console.log('Sessions created successfully');
+                }}
               />
             </div>
           </div>
-
-          <SessionCreationPanel
-            slots={slots}
-            cohortIds={selectedCohorts.map(c => c.id)}
-            onSessionsCreated={() => {
-              console.log('Sessions created successfully');
-            }}
-          />
         </div>
       )}
     </WizardLayout>

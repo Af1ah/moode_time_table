@@ -13,6 +13,9 @@ interface SubjectCardProps {
     assignedTeachers: Teacher[];
     onRemoveTeacher: (teacherId: number) => void;
     onAdvancedConstraints: (teacher: Teacher) => void;
+    attendanceInstances?: any[];
+    selectedInstanceId?: number;
+    onInstanceChange?: (instanceId: number) => void;
 }
 
 export default function SubjectCard({
@@ -23,7 +26,10 @@ export default function SubjectCard({
     onHoursChange,
     assignedTeachers,
     onRemoveTeacher,
-    onAdvancedConstraints
+    onAdvancedConstraints,
+    attendanceInstances = [],
+    selectedInstanceId,
+    onInstanceChange
 }: SubjectCardProps) {
     const [isOpen, setIsOpen] = useState(false);
 
@@ -50,7 +56,7 @@ export default function SubjectCard({
                 <div className="flex-1 min-w-0 pr-4">
                     <h3 className="text-lg font-bold text-gray-900 truncate">{subject.name}</h3>
                     <div className="flex items-center gap-2 mt-1.5 text-base">
-                        <span className="text-gray-500">Target: {hours? hours : 'N/A'} h</span>
+                        <span className="text-gray-500">Target: {hours ? hours : 'N/A'} h</span>
                         {scheduledCount > 0 && (
                             <>
                                 <span className="text-gray-300">|</span>
@@ -75,19 +81,19 @@ export default function SubjectCard({
 
                 <div className="flex items-center gap-4">
                     {/* Stepper - Visible in header for quick access */}
-                    <div className="flex items-center bg-gray-100 rounded-xl p-1.5" onClick={e => e.stopPropagation()}>
+                    <div className="hidden md:flex items-center bg-gray-100 rounded-xl p-1.5" onClick={e => e.stopPropagation()}>
                         <button
                             onClick={handleDecrement}
-                            disabled={hours <= 0}
-                            className="w-10 h-10 flex items-center justify-center rounded-lg bg-white text-gray-600 shadow-sm disabled:opacity-50 disabled:shadow-none hover:text-indigo-600 transition-colors"
+                            disabled={hours < 1}
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white text-gray-600 shadow-sm disabled:opacity-50 disabled:shadow-none hover:text-indigo-600 transition-colors"
                         >
                             <span className="text-xl font-bold">-</span>
                         </button>
-                        <span className="w-10 text-center font-bold text-lg text-gray-900">{hours}</span>
+                        <span className="w-7 text-center font-bold text-lg text-gray-900">{hours}</span>
                         <button
                             onClick={handleIncrement}
                             disabled={hours >= maxHours}
-                            className="w-10 h-10 flex items-center justify-center rounded-lg bg-white text-gray-600 shadow-sm disabled:opacity-50 disabled:shadow-none hover:text-indigo-600 transition-colors"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg bg-white text-gray-600 shadow-sm disabled:opacity-50 disabled:shadow-none hover:text-indigo-600 transition-colors"
                         >
                             <span className="text-xl font-bold">+</span>
                         </button>
@@ -147,6 +153,27 @@ export default function SubjectCard({
                             )}
                         </div>
                     </div>
+
+                    {/* Attendance Instance Section */}
+                    {onInstanceChange && (
+                        <div>
+                            <div className="flex justify-between items-center mb-2">
+                                <span className="text-sm font-medium text-gray-700">Attendance Instance</span>
+                            </div>
+                            <select
+                                value={selectedInstanceId || -1}
+                                onChange={(e) => onInstanceChange(Number(e.target.value))}
+                                className="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            >
+                                <option value={-1}>Create New</option>
+                                {attendanceInstances.map((instance: any) => (
+                                    <option key={instance.id} value={instance.id}>
+                                        {instance.name} (ID: {instance.id})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

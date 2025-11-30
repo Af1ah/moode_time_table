@@ -19,6 +19,8 @@ export default function WorkloadInput(props: WorkloadInputProps) {
     const [workloads, setWorkloads] = useState<Record<number, number>>({});
     const [generating, setGenerating] = useState(false);
     const [activeTeacher, setActiveTeacher] = useState<{ teacher: Teacher, courseName: string } | null>(null);
+    const [attendanceInstances, setAttendanceInstances] = useState<Record<number, any[]>>({});
+    const [selectedInstances, setSelectedInstances] = useState<Record<number, number>>({});
 
     // Filter subjects based on selected cohorts
     const filteredSubjects = subjects.filter(s =>
@@ -71,6 +73,51 @@ export default function WorkloadInput(props: WorkloadInputProps) {
         fetchAllTeachers();
     }, [subjects]); // Run when subjects change
 
+    // Fetch attendance instances
+    useEffect(() => {
+        async function fetchAttendanceInstances() {
+            try {
+                const subjectIds = filteredSubjects.map(s => s.id);
+                if (subjectIds.length === 0) return;
+
+                const res = await fetch('/api/moodle/attendance-instances', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ courseIds: subjectIds }),
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.instances) {
+                        setAttendanceInstances(data.instances);
+
+                        // Auto-select logic
+                        const newSelected = { ...selectedInstances };
+                        Object.entries(data.instances).forEach(([courseId, instances]) => {
+                            const cId = Number(courseId);
+                            const instList = instances as any[];
+                            if (!newSelected[cId]) {
+                                if (instList.length > 0) {
+                                    // Default to first instance? Or maybe "Create New" if user prefers?
+                                    // User said: "if no instence auto select new session"
+                                    // So if instances exist, maybe select the first one?
+                                    // Let's select the first one if exists, else -1 (New)
+                                    newSelected[cId] = instList[0].id;
+                                } else {
+                                    newSelected[cId] = -1; // -1 for Create New
+                                }
+                            }
+                        });
+                        setSelectedInstances(newSelected);
+                    }
+                }
+            } catch (e) {
+                console.error('Failed to fetch attendance instances', e);
+            }
+        }
+        fetchAttendanceInstances();
+    }, [subjects]);
+
     const handleHourChange = (subjectId: number, hours: number) => {
         // Enforce max limit
         const validHours = Math.min(Math.max(0, hours), maxWorkload);
@@ -95,6 +142,13 @@ export default function WorkloadInput(props: WorkloadInputProps) {
             [teacherId]: blockedSlots
         };
         onTeachersUpdate(courseTeachers, newConstraints);
+    };
+
+    const handleInstanceChange = (courseId: number, instanceId: number) => {
+        setSelectedInstances(prev => ({
+            ...prev,
+            [courseId]: instanceId
+        }));
     };
 
     const handleGenerate = async () => {
@@ -137,7 +191,8 @@ export default function WorkloadInput(props: WorkloadInputProps) {
                     lockedSlots: apiLockedSlots,
                     periodsPerDay: props.periodsPerDay,
                     teacherConstraints, // Pass teacher constraints
-                    courseTeachers      // Pass teacher mappings
+                    courseTeachers,      // Pass teacher mappings
+                    attendanceInstances: selectedInstances // Pass selected instances
                 }),
             });
 
@@ -181,6 +236,9 @@ export default function WorkloadInput(props: WorkloadInputProps) {
                             assignedTeachers={courseTeachers[subject.id] || []}
                             onRemoveTeacher={(tId) => handleRemoveTeacher(subject.id, tId)}
                             onAdvancedConstraints={(t) => setActiveTeacher({ teacher: t, courseName: subject.name })}
+                            attendanceInstances={attendanceInstances[subject.id] || []}
+                            selectedInstanceId={selectedInstances[subject.id]}
+                            onInstanceChange={(id) => handleInstanceChange(subject.id, id)}
                         />
                     );
                 })}
@@ -189,7 +247,7 @@ export default function WorkloadInput(props: WorkloadInputProps) {
                 <button
                     onClick={handleGenerate}
                     disabled={generating}
-                    className="w-full sm:w-auto bg-indigo-600 text-white px-6 py-4 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:shadow-none font-bold text-lg"
+                    className="hidden md:block w-full sm:w-auto bg-indigo-600 text-white px-6 py-4 rounded-xl hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:shadow-none font-bold text-lg"
                 >
                     {generating ? 'Generating Schedule...' : 'Auto-Generate Schedule'}
                 </button>
