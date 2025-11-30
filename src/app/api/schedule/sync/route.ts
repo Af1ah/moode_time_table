@@ -20,6 +20,22 @@ export async function POST(request: Request) {
        return NextResponse.json({ message: 'Today is a weekend. No schedule to sync.' });
     }
 
+    // Check for existing sessions for this date and cohorts
+    const existingSessions = await prisma.sessionInstance.findMany({
+      where: {
+        cohortId: { in: cohortIds.map(Number) },
+        sessionDate: dateObj,
+      }
+    });
+
+    if (existingSessions.length > 0) {
+      return NextResponse.json({ 
+        warning: true, 
+        message: `Sessions already exist for this date. Are you sure you want to duplicate/overwrite?`,
+        existingCount: existingSessions.length
+      });
+    }
+
     const allResults: any[] = [];
 
     for (const cohortId of cohortIds) {

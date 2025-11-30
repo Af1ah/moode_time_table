@@ -23,6 +23,10 @@ export default function Home() {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [courseTeachers, setCourseTeachers] = useState<Record<number, Teacher[]>>({});
   const [teacherConstraints, setTeacherConstraints] = useState<Record<number, string[]>>({});
+
+  // Overwrite Modal State
+  const [showOverwriteModal, setShowOverwriteModal] = useState(false);
+  const [overwriteMessage, setOverwriteMessage] = useState('');
   const router = useRouter();
 
   useEffect(() => {
@@ -80,19 +84,19 @@ export default function Home() {
 
           // Convert recurring sessions to Slot format
           const recurringSlots: Slot[] = recurringSessions.map((session: any) => ({
-            day: session.dayOfWeek,
+            day: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][session.dayOfWeek],
             period: session.period,
             subject: session.courseName,
             cohortId: session.cohortId,
             cohortName: session.cohortName,
             courseId: session.courseId,
-            isLocked: true, // Mark as locked since they're already created
+            isLocked: true,
           }));
 
-          // Merge with existing manually created slots
           setSlots(prevSlots => {
-            // Remove any recurring slots from previous load
             const manualSlots = prevSlots.filter(s => !s.isLocked);
+            // Filter out any manual slots that conflict with loaded ones? 
+            // Or just merge.
             return [...manualSlots, ...recurringSlots];
           });
         }
@@ -168,6 +172,40 @@ export default function Home() {
   const isNextDisabled = () => {
     if (currentStep === 1) return selectedCohorts.length === 0;
     return false;
+  };
+
+  const executeSave = async (force = false) => {
+    try {
+      const res = await fetch('/api/schedule/recurring', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cohortIds: selectedCohorts.map(c => c.id),
+          slots,
+          force
+        }),
+      });
+      const data = await res.json();
+
+      if (data.warning) {
+        setOverwriteMessage(data.message);
+        setShowOverwriteModal(true);
+      } else if (data.success) {
+        alert('Timetable Saved to Database!');
+        setShowOverwriteModal(false);
+      } else {
+        alert('Save failed: ' + data.error);
+        setShowOverwriteModal(false);
+      }
+    } catch (e) {
+      alert('Save error');
+      setShowOverwriteModal(false);
+    }
+  };
+
+  const handleConfirmOverwrite = () => {
+    executeSave(true);
+    setShowOverwriteModal(false);
   };
 
   return (
@@ -247,24 +285,13 @@ export default function Home() {
                       Save Master
                     </button>
                     <button
-                      onClick={async () => {
+                      onClick={() => {
                         if (selectedCohorts.length === 0) return alert('Select at least one cohort');
-                        const date = new Date().toISOString().split('T')[0]; // Today
-                        try {
-                          const res = await fetch('/api/schedule/sync', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ date, cohortIds: selectedCohorts.map(c => c.id) }),
-                          });
-                          const data = await res.json();
-                          alert(JSON.stringify(data, null, 2));
-                        } catch (e) {
-                          alert('Sync failed');
-                        }
+                        executeSave(false);
                       }}
                       className="hidden md:block flex-1 sm:flex-none bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors shadow-sm text-sm font-medium"
                     >
-                      Sync Today
+                      Save Timetable
                     </button>
                   </div>
                 </div>
@@ -299,6 +326,39 @@ export default function Home() {
                   console.log('Sessions created successfully');
                 }}
               />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Overwrite Confirmation Modal */}
+      {showOverwriteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 mb-4 text-amber-600">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <h3 className="text-lg font-bold text-gray-900">Warning</h3>
+            </div>
+
+            <p className="text-gray-600 mb-6">
+              {overwriteMessage || 'A timetable already exists for these cohorts. Do you want to overwrite it?'}
+            </p>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowOverwriteModal(false)}
+                className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmOverwrite}
+                className="px-4 py-2 bg-amber-600 text-white font-medium rounded-lg hover:bg-amber-700 transition-colors shadow-sm"
+              >
+                Overwrite
+              </button>
             </div>
           </div>
         </div>

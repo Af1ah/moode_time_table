@@ -30,4 +30,4 @@ jobs:
             npm run build
             
             # 5. Restart PM2 to apply changes
-            pm2 restart time_table
+            pm2 restart time-table

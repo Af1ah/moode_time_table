@@ -200,6 +200,11 @@ export default function WeeklyGrid({ selectedCohorts, slots, subjects, onSlotCha
                                                     )}
                                                 >
                                                     <option value="" className="text-gray-500 bg-white">-- Empty --</option>
+                                                    {slot?.courseId && !cohortSubjects.find(s => s.id === slot.courseId) && (
+                                                        <option value={slot.courseId} className="text-gray-900 bg-white">
+                                                            {slot.subject || `Course ${slot.courseId}`} (Saved)
+                                                        </option>
+                                                    )}
                                                     {cohortSubjects.map(s => (
                                                         <option key={s.id} value={s.id} className="text-gray-900 bg-white">{s.name}</option>
                                                     ))}

@@ -15,9 +15,14 @@ export async function POST(request: Request) {
       try {
         const instances = await moodleClient.getAttendanceInstances(courseId);
         results[courseId] = instances;
-      } catch (error) {
-        console.warn(`Failed to fetch attendance instances for course ${courseId}`, error);
-        results[courseId] = [];
+      } catch (error: any) {
+        if (error.message?.includes("Can't find data record")) {
+           // Suppress known Moodle error for missing courses
+           results[courseId] = [];
+        } else {
+           console.warn(`Failed to fetch attendance instances for course ${courseId}`, error);
+           results[courseId] = [];
+        }
       }
     }));
 

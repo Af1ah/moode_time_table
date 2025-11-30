@@ -13,24 +13,27 @@ export default function SessionCreationPanel({ slots, cohortIds, onSessionsCreat
     const [endDate, setEndDate] = useState('');
     const [mode, setMode] = useState<'manual' | 'cron'>('manual');
     const [creating, setCreating] = useState(false);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-    const handleCreateSessions = async () => {
+    const initiateCreate = () => {
         if (!startDate || !endDate) {
             setMessage({ type: 'error', text: 'Please select both start and end dates' });
             return;
         }
-
         if (cohortIds.length === 0) {
             setMessage({ type: 'error', text: 'Please select at least one cohort' });
             return;
         }
-
         if (slots.length === 0) {
             setMessage({ type: 'error', text: 'No timetable slots available. Please generate a schedule first.' });
             return;
         }
+        setShowConfirmModal(true);
+    };
 
+    const handleConfirmCreate = async () => {
+        setShowConfirmModal(false);
         setCreating(true);
         setMessage(null);
 
@@ -81,38 +84,6 @@ export default function SessionCreationPanel({ slots, cohortIds, onSessionsCreat
             </p>
 
             <div className="space-y-4">
-                {/* Mode Toggle */}
-                {/* Mode Toggle - Hidden as Cron is not ready */}
-                {/* 
-                <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Scheduling Mode
-                    </label>
-                    <div className="flex gap-4">
-                        <button
-                            onClick={() => setMode('manual')}
-                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${mode === 'manual'
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                        >
-                            Manual (Create Now)
-                        </button>
-                        <button
-                            onClick={() => setMode('cron')}
-                            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${mode === 'cron'
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                }`}
-                            disabled
-                            title="Cron mode coming soon"
-                        >
-                            Cron (Scheduled) - Coming Soon
-                        </button>
-                    </div>
-                </div> 
-                */}
-
                 {/* Date Range */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
@@ -169,7 +140,7 @@ export default function SessionCreationPanel({ slots, cohortIds, onSessionsCreat
                 {/* Create Button */}
                 <div className="pt-2">
                     <button
-                        onClick={handleCreateSessions}
+                        onClick={initiateCreate}
                         disabled={creating || !startDate || !endDate}
                         className="w-full bg-green-600 text-white px-6 py-3 rounded-md hover:bg-green-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                     >
@@ -177,6 +148,41 @@ export default function SessionCreationPanel({ slots, cohortIds, onSessionsCreat
                     </button>
                 </div>
             </div>
+
+            {/* Confirmation Modal */}
+            {showConfirmModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
+                        <div className="flex items-center gap-3 mb-4 text-indigo-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <h3 className="text-lg font-bold text-gray-900">Confirm Creation</h3>
+                        </div>
+
+                        <p className="text-gray-600 mb-6">
+                            You are about to create Moodle attendance sessions from <strong>{startDate}</strong> to <strong>{endDate}</strong>.
+                            <br /><br />
+                            Existing sessions will be skipped to prevent duplicates.
+                        </p>
+
+                        <div className="flex gap-3 justify-end">
+                            <button
+                                onClick={() => setShowConfirmModal(false)}
+                                className="px-4 py-2 text-gray-600 font-medium hover:bg-gray-100 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmCreate}
+                                className="px-4 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
+                            >
+                                Create Sessions
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

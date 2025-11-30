@@ -101,9 +101,18 @@ class MoodleClient {
       // We need to find the attendance instance id for a course.
       // Usually `core_course_get_contents` returns modules.
       // We can filter for "attendance" modname.
-      const contents = await this.call('core_course_get_contents', MOODLE_TOKEN!, {
-          courseid: courseId
-      });
+      // We can filter for "attendance" modname.
+      let contents = [];
+      try {
+        contents = await this.call('core_course_get_contents', MOODLE_TOKEN!, {
+            courseid: courseId
+        });
+      } catch (error: any) {
+        if (error.message?.includes("Can't find data record")) {
+            return [];
+        }
+        throw error;
+      }
       
       const attendanceInstances: any[] = [];
       contents.forEach((section: any) => {
@@ -130,9 +139,17 @@ class MoodleClient {
 
   async getCourseTeachers(courseId: number) {
     // Get all enrolled users for the course
-    const users = await this.call('core_enrol_get_enrolled_users', MOODLE_TOKEN!, {
-      courseid: courseId
-    });
+    let users = [];
+    try {
+      users = await this.call('core_enrol_get_enrolled_users', MOODLE_TOKEN!, {
+        courseid: courseId
+      });
+    } catch (error: any) {
+      if (error.message?.includes("Can't find data record")) {
+        return []; // Return empty if course not found
+      }
+      throw error; // Re-throw other errors
+    }
 
     // Filter for teachers (roleid 3 = editing teacher, roleid 4 = non-editing teacher)
     // In Moodle, teachers usually have roles like 'editingteacher' or 'teacher'
